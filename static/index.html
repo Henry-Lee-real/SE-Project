@@ -1,0 +1,225 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Title</title>
+    <style>
+
+        .slideshow-container {
+            max-width: 1500px;
+            max-height: 1000px;
+            position: relative;
+            background-color: #b0b0b0;
+            margin: 100px auto;
+        }
+
+        .mySlides {
+            display: none;
+        }
+
+        .prev, .next {
+            cursor: pointer;
+            position: absolute;
+            top: 50%;
+            width: auto;
+            padding: 16px;
+            margin-top: -22px;
+            color: white;
+            font-weight: bold;
+            font-size: 18px;
+            transition: 0.6s ease;
+            border-radius: 0 3px 3px 0;
+            user-select: none;
+        }
+
+        .next {
+            right: 0;
+            border-radius: 3px 0 0 3px;
+        }
+
+        .prev:hover, .next:hover {
+            background-color: rgba(0, 0, 0, 0.8);
+        }
+
+        .text {
+            color: #f2f2f2;
+            font-size: 15px;
+            padding: 8px 12px;
+            position: absolute;
+            bottom: 8px;
+            width: 100%;
+            text-align: center;
+        }
+
+        .numbertext {
+            color: #f2f2f2;
+            font-size: 12px;
+            padding: 8px 12px;
+            position: absolute;
+            top: 0;
+        }
+
+        .dot {
+            cursor: pointer;
+            height: 15px;
+            width: 15px;
+            margin: 0 2px;
+            background-color: #bbb;
+            border-radius: 50%;
+            display: inline-block;
+            transition: background-color 0.6s ease;
+        }
+
+        .active, .dot:hover {
+            background-color: #717171;
+        }
+
+        .fade {
+            -webkit-animation-name: fade;
+            -webkit-animation-duration: 1.5s;
+            animation-name: fade;
+            animation-duration: 1.5s;
+        }
+
+        @-webkit-keyframes fade {
+            from {
+                opacity: .4
+            }
+            to {
+                opacity: 1
+            }
+        }
+
+        @keyframes fade {
+            from {
+                opacity: .4
+            }
+            to {
+                opacity: 1
+            }
+        }
+    </style>
+</head>
+<body>
+<input type="text" id="myInput" placeholder="分类">
+<button id="submit">确认</button>
+<button id="delete">回收</button>
+<input type="file" id="fileUpload" accept="image/*">
+<button onclick="uploadImage()">上传图片</button>
+<div class="slideshow-container" id="container">
+    <a class="prev" onclick="plusSlides(-1)">&#10094;</a>
+    <a class="next" onclick="plusSlides(1)">&#10095;</a>
+</div>
+</body>
+<script>
+    function uploadImage() {
+        var fileInput = document.getElementById('fileUpload');
+        var file = fileInput.files[0];
+        var formData = new FormData();
+        formData.append('file', file);
+
+        fetch('/upload', {
+            method: 'POST',
+            body: formData
+        })
+            .then(response => response.text())
+            .then(data => {
+                alert(data)
+
+                getImages()
+            })
+            .catch(error => console.error(error));
+    }
+
+    function deleteImage() {
+        var slides = document.getElementsByClassName("mySlides");
+        const img = slides[slideIndex - 1].getElementsByTagName('img')[0]
+
+        console.log(img.src.split('/').pop())
+
+
+        const name = img.src.split('/').pop()
+        fetch('/delete/' + name).then(response => response.text()).then(data => {
+            alert(data)
+            getImages()
+        }).catch(error => console.error(error));
+
+    }
+
+    getImages()
+    var slideIndex = 1;
+
+
+    function plusSlides(n) {
+        showSlides(slideIndex += n);
+    }
+
+    function showSlides(n) {
+        var i;
+        var slides = document.getElementsByClassName("mySlides");
+        if (n > slides.length) {
+            slideIndex = 1
+        }
+        if (n < 1) {
+            slideIndex = slides.length
+        }
+        for (i = 0; i < slides.length; i++) {
+            slides[i].style.display = "none";
+        }
+        slides[slideIndex - 1].style.display = "block";
+    }
+
+    document.getElementById("submit").addEventListener("click", function () {
+        const ctx = document.getElementById("myInput").value
+        fetch('/submit/' + (ctx || 'null')).then(response => response.text()).then(data => {
+            alert(data)
+            getImages()
+        }).catch(error => console.error(error));
+        alert("确认");
+    });
+
+    document.getElementById("delete").addEventListener("click", function () {
+        deleteImage()
+    });
+
+    function getImages() {
+        fetch('/images')
+            .then(response => response.json())
+            .then(data => {
+                document.querySelectorAll('.mySlides').forEach(node => {
+                    node.remove();
+                })
+                data.forEach(image => {
+                    var img = document.createElement('img');
+                    img.onload = function() {
+                        if (this.height > 600) { // 假设你希望最大高度为600px
+                            this.style.height = '600px'; // 设置图片高度不超过600px
+                            this.style.width = 'auto';  // 宽度自适应以保持图片比例
+                        }
+                    };
+                    img.src = 'img/' + image;
+                    img.style.width = '100%'; // 图片宽度自适应容器宽度
+                    img.style.display = 'block'; // 将图片设置为块级元素
+                    img.style.margin = 'auto'; // 水平居中
+                    var slide = document.createElement('div');
+                    slide.className = 'mySlides';
+                    slide.style.display = 'flex'; // 使用Flexbox布局
+                    slide.style.justifyContent = 'center'; // 水平居中内容
+                    slide.style.alignItems = 'center'; // 垂直居中内容
+                    slide.style.height = '100%'; // 使div高度填满父元素
+                    slide.appendChild(img);
+                    document.getElementById('container').appendChild(slide);
+                });
+                showSlides(slideIndex);
+    
+                console.log(data)
+            })
+            .catch(error => console.error(error));
+    }
+    
+
+  
+
+
+</script>
+</html>
