@@ -101,9 +101,9 @@
     </style>
 </head>
 <body>
-<input type="text" id="myInput" placeholder="分类">
-<button id="submit">确认</button>
-<button id="class">类别查看</button>
+<button id="main">主目录</button>
+<input type="text" id="myInput" placeholder="查看分类">
+<button id="check_submit">确认</button>
 <button id="delete">回收</button>
 <button id="deletefile">回收站</button>
 <input type="file" id="fileUpload" accept="image/*">
@@ -114,6 +114,11 @@
 </div>
 </body>
 <script>
+
+    document.getElementById('main').addEventListener('click', function() {
+        window.location.href = 'index.html'; // 指定跳转的目标网页
+    });
+
     function uploadImage() {
         var fileInput = document.getElementById('fileUpload');
         var file = fileInput.files[0];
@@ -132,10 +137,6 @@
             })
             .catch(error => console.error(error));
     }
-
-    document.getElementById('class').addEventListener('click', function() {
-        window.location.href = 'class.html'; // 指定跳转的目标网页
-    });
 
     document.getElementById('deletefile').addEventListener('click', function() {
         window.location.href = 'delete.html'; // 指定跳转的目标网页
@@ -179,16 +180,9 @@
         slides[slideIndex - 1].style.display = "block";
     }
 
-    document.getElementById("submit").addEventListener("click", function () {
-        var slides = document.getElementsByClassName("mySlides");
-        const img = slides[slideIndex - 1].getElementsByTagName('img')[0]
-
-        console.log(img.src.split('/').pop())
-
-
-        const name = img.src.split('/').pop()
+    document.getElementById("check_submit").addEventListener("click", function () {
         const ctx = document.getElementById("myInput").value
-        fetch('/submit/' + (ctx || 'null') + '/' + name).then(response => response.text()).then(data => {
+        fetch('/check_submit/' + (ctx || 'null')).then(response => response.text()).then(data => {
             alert(data)
             getImages()
         }).catch(error => console.error(error));
@@ -200,7 +194,7 @@
     });
 
     function getImages() {
-        fetch('/images')
+        fetch('/images_class')
             .then(response => response.json())
             .then(data => {
                 document.querySelectorAll('.mySlides').forEach(node => {

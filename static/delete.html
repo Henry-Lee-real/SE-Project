@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>Title</title>
+    <title>Delete</title>
     <style>
 
         .slideshow-container {
@@ -101,47 +101,22 @@
     </style>
 </head>
 <body>
-<input type="text" id="myInput" placeholder="分类">
-<button id="submit">确认</button>
-<button id="class">类别查看</button>
-<button id="delete">回收</button>
-<button id="deletefile">回收站</button>
-<input type="file" id="fileUpload" accept="image/*">
-<button onclick="uploadImage()">上传图片</button>
+<button id="main">主目录</button>
+<button id="kill">删除</button>
+<button id="recover">恢复</button>
 <div class="slideshow-container" id="container">
     <a class="prev" onclick="plusSlides(-1)">&#10094;</a>
     <a class="next" onclick="plusSlides(1)">&#10095;</a>
 </div>
 </body>
+</body>
 <script>
-    function uploadImage() {
-        var fileInput = document.getElementById('fileUpload');
-        var file = fileInput.files[0];
-        var formData = new FormData();
-        formData.append('file', file);
-
-        fetch('/upload', {
-            method: 'POST',
-            body: formData
-        })
-            .then(response => response.text())
-            .then(data => {
-                alert(data)
-
-                getImages()
-            })
-            .catch(error => console.error(error));
-    }
-
-    document.getElementById('class').addEventListener('click', function() {
-        window.location.href = 'class.html'; // 指定跳转的目标网页
+    
+    document.getElementById('main').addEventListener('click', function() {
+        window.location.href = 'index.html'; // 指定跳转的目标网页
     });
 
-    document.getElementById('deletefile').addEventListener('click', function() {
-        window.location.href = 'delete.html'; // 指定跳转的目标网页
-    });
-
-    function deleteImage() {
+    function delete_Image() {
         var slides = document.getElementsByClassName("mySlides");
         const img = slides[slideIndex - 1].getElementsByTagName('img')[0]
 
@@ -149,14 +124,29 @@
 
 
         const name = img.src.split('/').pop()
-        fetch('/delete/' + name).then(response => response.text()).then(data => {
+        fetch('/kill/' + name).then(response => response.text()).then(data => {
             alert(data)
-            getImages()
+            get_Images()
         }).catch(error => console.error(error));
 
     }
 
-    getImages()
+    function recover_Image() {
+        var slides = document.getElementsByClassName("mySlides");
+        const img = slides[slideIndex - 1].getElementsByTagName('img')[0]
+
+        console.log(img.src.split('/').pop())
+
+
+        const name = img.src.split('/').pop()
+        fetch('/recover/' + name).then(response => response.text()).then(data => {
+            alert(data)
+            get_Images()
+        }).catch(error => console.error(error));
+
+    }
+
+    get_Images()
     var slideIndex = 1;
 
 
@@ -179,28 +169,18 @@
         slides[slideIndex - 1].style.display = "block";
     }
 
-    document.getElementById("submit").addEventListener("click", function () {
-        var slides = document.getElementsByClassName("mySlides");
-        const img = slides[slideIndex - 1].getElementsByTagName('img')[0]
 
-        console.log(img.src.split('/').pop())
-
-
-        const name = img.src.split('/').pop()
-        const ctx = document.getElementById("myInput").value
-        fetch('/submit/' + (ctx || 'null') + '/' + name).then(response => response.text()).then(data => {
-            alert(data)
-            getImages()
-        }).catch(error => console.error(error));
-        alert("确认");
+    document.getElementById("kill").addEventListener("click", function () {
+        delete_Image()
     });
 
-    document.getElementById("delete").addEventListener("click", function () {
-        deleteImage()
+
+    document.getElementById("recover").addEventListener("click", function () {
+        recover_Image()
     });
 
-    function getImages() {
-        fetch('/images')
+    function get_Images() {
+        fetch('/images_delete')
             .then(response => response.json())
             .then(data => {
                 document.querySelectorAll('.mySlides').forEach(node => {
@@ -209,13 +189,13 @@
                 data.forEach(image => {
                     var img = document.createElement('img');
                     img.onload = function() {
-                        
+                        if (this.height > 600) { // 假设你希望最大高度为600px
                             this.style.height = '600px'; // 设置图片高度不超过600px
                             this.style.width = 'auto';  // 宽度自适应以保持图片比例
-                        
+                        }
                     };
                     img.src = 'img/' + image;
-         
+                    img.style.width = '100%'; // 图片宽度自适应容器宽度
                     img.style.display = 'block'; // 将图片设置为块级元素
                     img.style.margin = 'auto'; // 水平居中
                     var slide = document.createElement('div');
@@ -223,7 +203,7 @@
                     slide.style.display = 'flex'; // 使用Flexbox布局
                     slide.style.justifyContent = 'center'; // 水平居中内容
                     slide.style.alignItems = 'center'; // 垂直居中内容
-                 
+                    slide.style.height = '100%'; // 使div高度填满父元素
                     slide.appendChild(img);
                     document.getElementById('container').appendChild(slide);
                 });

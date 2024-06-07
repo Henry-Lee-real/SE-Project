@@ -2,6 +2,7 @@ import json
 from datetime import datetime
 
 
+
 # 读取所有图片信息
 def loadInfo():
     with open("info.json", "r") as infoFp:
@@ -34,6 +35,8 @@ def getImages(label=None):
 
 
 # 改变某张图片的label
+
+### 鲁棒性
 def changeLabel(name, label):
     info = loadInfo()
     labels = list(info['labels'])
@@ -44,22 +47,22 @@ def changeLabel(name, label):
             for img in images:
                 if img == name:
                     info['labels'][lab].remove(name)
+    updateInfo(info)
     return
 
 
 # 上传图片，默认为no label
-def uploadImage(name, label=None):
-    if label is None:
-        label = 'no label'
+def uploadImage(name, label='no labels'):
     info = loadInfo()
     info['labels'][label].append(name)
+    info['total']+=1
     updateInfo(info)
     return
 
 
 # 设置名字
 def selectName():
-    name = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    name = datetime.now().strftime("%Y-%m-%d-%H-%M-%S")
     return name
 
 
