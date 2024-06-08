@@ -138,14 +138,31 @@ def handle(ctx):
 
     return ctx
 
+def is_char_digit(s):
+    # 首先检查字符串是否为空，以避免索引错误
+    if s:  # 确保字符串不为空
+        return s[0:4].isdigit()  # 检查第一个字符是否是数字
+    else:
+        return False  # 如果字符串为空，则返回False
+
 @app.route('/check_submit/<ctx>', methods=['GET'])
 def check_submit(ctx):
     try:
         ### ctx 判断！！鲁棒性
         info = loadInfo()
-        data = info["labels"][ctx]
-        with open('out.json', 'w', encoding='utf-8') as file:
-            json.dump(data, file, ensure_ascii=False, indent=4)
+        if is_char_digit(ctx):
+            data = []
+            all = info["labels"]
+            for label in all:
+                for name in all[label]:
+                    if ctx == name[0:10]:
+                        data.append(name)
+            with open('out.json', 'w', encoding='utf-8') as file:
+                json.dump(data, file, ensure_ascii=False, indent=4)
+        else:
+            data = info["labels"][ctx]
+            with open('out.json', 'w', encoding='utf-8') as file:
+                json.dump(data, file, ensure_ascii=False, indent=4)
         
        
         
