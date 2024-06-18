@@ -125,7 +125,7 @@ class Info:
                 self.data['labels']['recycled'].remove((name, past_time))
         return True
 
-    # 检测回收站内的图片是否超过30天，在每次实例化的时候调用
+    # 检测回收站内的图片是否超过30天，在每次实例化的时候调用，返回应被删除的图片名
     def RecycleCheck(self):
         now = datetime.now()
         t = now.strftime("%Y-%m-%d-%H-%M-%S")
