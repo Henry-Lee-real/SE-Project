@@ -143,6 +143,20 @@
             })
             .catch(error => console.error(error));
     }
+    
+    document.getElementById('note').addEventListener('click', function() {
+        var slides = document.getElementsByClassName("mySlides");
+        const img = slides[slideIndex - 1].getElementsByTagName('img')[0];
+        const name = img.src.split('/').pop();  // 获取图片文件名
+    
+        // 构造带有查询参数的URL
+        const targetUrl = `note.html?filename=${encodeURIComponent(name)}`;
+    
+        // 跳转到目标URL
+        window.location.href = targetUrl;
+    });
+    
+
 
     document.getElementById('noisy').addEventListener('click', function() {
         var slides = document.getElementsByClassName("mySlides");
