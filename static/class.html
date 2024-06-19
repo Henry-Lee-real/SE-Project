@@ -102,10 +102,15 @@
 </head>
 <body>
 <button id="main">主目录</button>
-<input type="text" id="myInput" placeholder="查看分类">
+<button id="note">批注</button>
+<input type="text" id="myInput" placeholder="查看日期">
 <button id="check_submit">确认</button>
 <button id="delete">回收</button>
 <button id="deletefile">回收站</button>
+<select id="categorySelect" class="form-select">
+    <option selected>加载中...</option>
+</select>
+<button id="confirmCategory" onclick="submitCategory()">确认</button>
 <input type="file" id="fileUpload" accept="image/*">
 <button onclick="uploadImage()">上传图片</button>
 <div class="slideshow-container" id="container">
@@ -137,6 +142,20 @@
             })
             .catch(error => console.error(error));
     }
+    
+    document.getElementById('note').addEventListener('click', function() {
+        var slides = document.getElementsByClassName("mySlides");
+        const img = slides[slideIndex - 1].getElementsByTagName('img')[0];
+        const name = img.src.split('/').pop();  // 获取图片文件名
+    
+        // 构造带有查询参数的URL
+        const targetUrl = `note.html?filename=${encodeURIComponent(name)}`;
+    
+        // 跳转到目标URL
+        window.location.href = targetUrl;
+    });
+    
+
 
     document.getElementById('deletefile').addEventListener('click', function() {
         window.location.href = 'delete.html'; // 指定跳转的目标网页
@@ -228,9 +247,60 @@
             .catch(error => console.error(error));
     }
     
-
+    document.addEventListener("DOMContentLoaded", function() {
+        fetchCategories();
+    });
+    
+    function fetchCategories() {
+        fetch('/categories') // 确保这个 URL 与你的 Flask 路由匹配
+            .then(response => response.json())
+            .then(data => {
+                const select = document.getElementById('categorySelect');
+                select.innerHTML = ''; // 清空现有的选项
+    
+                // 默认选项
+                select.add(new Option('请选择分类', ''));
+    
+                // 添加从服务器获取的分类到下拉菜单
+                data.forEach(category => {
+                    select.add(new Option(category, category));
+                });
+            })
+            .catch(error => {
+                console.error('Error fetching categories:', error);
+                document.getElementById('categorySelect').innerHTML = '<option>Error loading categories</option>';
+            });
+    }
+    
   
-
+    function submitCategory() {
+        const select = document.getElementById('categorySelect');
+        const selectedCategory = select.value;
+    
+        if (!selectedCategory) {
+            alert('请选择一个有效的分类！');
+            return;
+        }
+    
+        // 发送选择的分类到服务器
+        fetch('/submit-category', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ category: selectedCategory })
+        })
+        .then(response => response.json())
+        .then(data => {
+            alert(data.message);
+            getImages();
+        })
+        .catch(error => {
+            console.error('Error submitting category:', error);
+            alert('提交失败');
+        });
+    }
+    
 
 </script>
 </html>
