@@ -110,7 +110,6 @@
 <input type="file" id="fileUpload" accept="image/*">
 <button onclick="uploadImage()">上传图片</button>
 <button id="shutdown" style="position: absolute; right: 20px; top: 20px;">关机</button>
-<button id="shutdown" style="position: absolute; right: 20px; top: 20px;">关机</button>
 <div class="slideshow-container" id="container">
     <a class="prev" onclick="plusSlides(-1)">&#10094;</a>
     <a class="next" onclick="plusSlides(1)">&#10095;</a>
@@ -151,8 +150,8 @@
             window.location.href = 'http://127.0.0.1:5000/static/index.html'; // 重定向到指定页面，确保是当前页面才执行关闭
             setTimeout(() => {
                 window.close(); // 尝试关闭当前窗口
-            }, 10); // 短延迟确保重定向执行
-        }, 50); // 设置超时时间，例如5秒
+            }, 100); // 短延迟确保重定向执行
+        }, 5000); // 设置超时时间，例如5秒
     
         fetch('/shutdown', { method: 'POST', signal: controller.signal })
             .then(response => {
@@ -161,7 +160,7 @@
                     window.location.href = 'http://127.0.0.1:5000/static/index.html'; // 重定向到指定页面，确保是当前页面才执行关闭
                     setTimeout(() => {
                         window.close(); // 尝试关闭当前窗口
-                    }, 10); // 短延迟确保重定向执行
+                    }, 100); // 短延迟确保重定向执行
                 }
             })
             .catch(error => {
@@ -169,7 +168,7 @@
                 window.location.href = 'http://127.0.0.1:5000/static/index.html'; // 重定向到指定页面，确保是当前页面才执行关闭
                 setTimeout(() => {
                     window.close(); // 尝试关闭当前窗口
-                }, 10); // 短延迟确保重定向执行
+                }, 100); // 短延迟确保重定向执行
             });
     });
     
