@@ -254,11 +254,10 @@ class Info:
         for img in imgs:
             path = os.path.join(self.data['info']['path'], img)
             path_ = os.path.join(self.data['info']['path'], 'P'+img)
-            with open(path, "rb") as fp:
+            with open(path, "r") as fp:
                 data = fp.read()
-                source = base64.b64encode(data).decode()
                 result = ''
-                for i in source:
+                for i in data:
                     result += chr(ord(i) - 5)
                 result = base64.b64decode(result)
             with open(path_, 'wb') as file:
@@ -277,9 +276,8 @@ class Info:
             result = ''
             for i in source:
                 result += chr(ord(i) + 5)
-            result = base64.b64decode(result)
         os.remove(path)
-        with open(path, 'wb') as file:
+        with open(path, 'w') as file:
             file.write(result)
         return True
 
@@ -288,11 +286,10 @@ class Info:
         img.label = 'no label'
         self.changeLabel(img)
         path = os.path.join(self.data['info']['path'], img.name)
-        with open(path, "rb") as fp:
+        with open(path, "r") as fp:
             data = fp.read()
-            source = base64.b64encode(data).decode()
             result = ''
-            for i in source:
+            for i in data:
                 result += chr(ord(i) - 5)
             result = base64.b64decode(result)
         os.remove(path)
