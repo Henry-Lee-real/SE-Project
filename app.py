@@ -1,22 +1,28 @@
-from flask import Flask, request, jsonify
+from flask import Flask, request, jsonify, send_from_directory
 
 from werkzeug.utils import secure_filename
 import os
 import shutil
 import webbrowser
-
+import signal
 import json
+import re
 
 from Service import *
 from temp import *
+from entity import Image, Out, Info, CategoryManager, Note
 
 
 class ImageApp:
-    def __init__(self):
+    def __init__(self, info, out, category, note):
         self.app = Flask(__name__)
         self.img_dir = os.path.join(os.getcwd(), 'static/img')
         self.app.config['UPLOAD_FOLDER'] = 'static/img'
         self.setup_routes()
+        self.info_json = info
+        self.out_json = out
+        self.cat = category
+        self.note = note
 
     def setup_routes(self):
         app = self.app
@@ -36,7 +42,9 @@ class ImageApp:
                 src_file = os.path.join(self.img_dir, filename)
                 dst_file = os.path.join(self.img_dir, new_name)
                 shutil.move(src_file, dst_file)
-                uploadImage(new_name)
+                tmp_image = Image(name=new_name)
+                self.info_json.upload(tmp_image)
+                self.info_json.save()
                 return 'File uploaded successfully'
 
 
@@ -50,10 +58,10 @@ class ImageApp:
             try:
                 
                 files = os.listdir(self.img_dir)
-                with open('out.json', 'r', encoding='utf-8') as file:
-                    data = json.load(file)
+                self.out_json.open()
+                data = self.out_json.get_all()
+                self.out_json.save()
                 images = [file for file in files if file.endswith(('.png', '.jpg', '.jpeg', '.gif')) and file in data]
-                print(images)
                 return jsonify(images)
             except Exception as e:
                 return str(e), 500
@@ -63,11 +71,8 @@ class ImageApp:
             try:
                 
                 files = os.listdir(self.img_dir)
-                info = loadInfo()
-                data = info["labels"]["no labels"]
-                print(data)
+                data = self.info_json.same_day()
                 images = [file for file in files if file.endswith(('.png', '.jpg', '.jpeg', '.gif')) and file in data]
-                print(images)
                 return jsonify(images)
             except Exception as e:
                 return str(e), 500
@@ -77,11 +82,10 @@ class ImageApp:
             try:
                 
                 files = os.listdir(self.img_dir)
-                info = loadInfo()
-                data = info["labels"]["recycled"]
+                data = self.info_json.getImages("recycled")
                 cmp = []
                 for name in data:
-                    cmp.append(name[0])
+                    cmp.append(name)
                 images = [file for file in files if file.endswith(('.png', '.jpg', '.jpeg', '.gif')) and file in cmp]
                 return jsonify(images)
             except Exception as e:
@@ -91,7 +95,9 @@ class ImageApp:
         @app.route('/delete/<filename>', methods=['GET'])
         def delete_image(filename):
             try:
-                recycle(filename)
+                tmp_image = Image(name=filename)
+                self.info_json.recycle(tmp_image)    
+                self.info_json.save()
                 return 'File deleted successfully'
             except Exception as e:
                 return str(e), 500
@@ -99,7 +105,9 @@ class ImageApp:
         @app.route('/kill/<filename>', methods=['GET'])
         def kill_image(filename):
             try:
-                delete_click(filename)
+                tmp_image = Image(name=filename)
+                self.info_json.delete(tmp_image)    
+                self.info_json.save()
                 src_file = os.path.join(self.img_dir, filename)
                 os.remove(src_file)
                 return 'File totally deleted successfully'
@@ -109,11 +117,27 @@ class ImageApp:
         @app.route('/recover/<filename>', methods=['GET'])
         def recover_image(filename):
             try:
-                unrecycle(filename)        
+                tmp_image = Image(name=filename)
+                self.info_json.unrecycle(tmp_image)
+                self.info_json.save()
                 return 'File recover successfully'
             except Exception as e:
                 return str(e), 500
+        
+        @app.route('/categories')
+        def get_categories():
+            return jsonify(self.cat.get_categories())
 
+        @app.route('/submit-category', methods=['POST'])
+        def submit_category():
+            data = request.get_json()
+            category = data.get('category')
+            data = self.info_json.getImages(category)
+            self.out_json.open()
+            self.out_json.clean()
+            self.out_json.save_all(data)
+            self.out_json.save()
+            return jsonify({'message': f'get:{category}'})
 
         def handle(ctx):
             if ctx == "all":
@@ -148,27 +172,80 @@ class ImageApp:
                 return s[0:4].isdigit()  # 检查第一个字符是否是数字
             else:
                 return False  # 如果字符串为空，则返回False
+        
+        def validate_and_transform(date_string):
+            # 尝试将输入的字符串转换为日期对象
+            try:
+                # 格式化日期
+                date = datetime.strptime(date_string, "%Y-%m-%d")
+            except ValueError:
+                return None, "Invalid date format. Expected format: YYYY-MM-DD"
 
+            # 创建一天开始和结束的时间字符串
+            start_of_day = date.strftime("%Y-%m-%d-00-00-00")
+            end_of_day = date.strftime("%Y-%m-%d-23-59-59")
+            return [start_of_day, end_of_day], None  # 返回格式化的日期范围和无错误
+        
+        def validate_one(date_string):
+            # 尝试将输入的字符串转换为日期对象
+            try:
+                # 格式化日期
+                return datetime.strptime(date_string, "%Y-%m-%d")
+            except ValueError:
+                return None
+            
+        def validate_input(input_string):
+            # 正则表达式匹配 "private" 后跟中文或英文冒号，然后是六位数字
+            pattern = r'^private[：:]\d{6}$'
+            if re.match(pattern, input_string):
+                return True
+            else:
+                return False
+        
         @app.route('/check_submit/<ctx>', methods=['GET'])
         def check_submit(ctx):
             try:
-                ### ctx 判断！！鲁棒性
-                info = loadInfo()
-                if is_char_digit(ctx):
-                    data = []
-                    all = info["labels"]
-                    for label in all:
-                        for name in all[label]:
-                            if ctx == name[0:10]:
-                                data.append(name)
-                    with open('out.json', 'w', encoding='utf-8') as file:
-                        json.dump(data, file, ensure_ascii=False, indent=4)
-                else:
-                    data = info["labels"][ctx]
-                    with open('out.json', 'w', encoding='utf-8') as file:
-                        json.dump(data, file, ensure_ascii=False, indent=4)
+                data, error = validate_and_transform(ctx)
+                if data:
+                    self.out_json.open()
+                    out_ = self.info_json.selectByTime(data[0], data[1])
+                    self.out_json.save_all(out_)
+                    self.out_json.save()
+                    return 'open successfully'
                 
-                return 'open successfully'
+                data = validate_one(ctx)
+                if data:
+                    info = loadInfo()
+                    if is_char_digit(ctx):
+                        self.out_json.open()
+                        all = info["labels"]
+                        for label in all:
+                            for name in all[label]:
+                                if ctx == name[0:10]:
+                                    self.out_json.add_image(name)
+                        self.out_json.save()
+                        return 'open successfully'
+                    
+                if validate_input(ctx):
+
+                    data = self.info_json.getPrivate(ctx[8:])
+                    if data == False:
+                        return 'error'                
+                    else:
+                        self.out_json.open()
+                        for img in data:
+                            self.out_json.self.out_json('P'+img)
+                        self.out_json.save()
+                        return 'open successfully'
+                    
+                if ctx == "close":
+                    for filename in os.listdir(self.img_dir):
+                        file_path = os.path.join(self.img_dir, filename)
+                        if filename.startswith('P') and filename.lower().endswith(('.png', '.jpg', '.jpeg')):
+                                os.remove(file_path)
+                                    
+                
+                return 'not correct'
             except Exception as e:
                 return str(e), 500
 
@@ -176,18 +253,91 @@ class ImageApp:
         @app.route('/submit/<ctx>/<filename>', methods=['GET'])
         def submit(ctx,filename):
             try:
-                
-                ## 鲁棒性
-                changeLabel(filename,ctx)
-                
+                if ctx == 'private':
+                    tmp_image = Image(name=filename,label=ctx)
+                    self.info_json.private(tmp_image)
+                    self.info_json.save()
+                    return 'Change label successfully'
+                labels = self.cat.get_categories()
+                if ctx not in labels:
+                    self.cat.add_category(ctx)
+                tmp_image = Image(name=filename,label=ctx)
+                self.info_json.changeLabel(tmp_image)
+                self.info_json.save()
                 return 'Change label successfully'
             except Exception as e:
                 return str(e), 500
+            
+        @app.route('/note.html')
+        def note_page():
+            return send_from_directory('static', 'note.html')
+        
+
+        @app.route('/annotations/<filename>', methods=['GET'])
+        def get_annotations(filename):
+            annotations = self.note.load()
+            annots = annotations.get(filename, [])
+            return jsonify(annots)
+
+        @app.route('/add_annotation', methods=['POST'])
+        def add_annotation():
+            annotations = self.note.load()
+            data = request.get_json()
+            filename = data['filename']
+            text = data['annotation']
+            annotation_id = str(len(annotations.get(filename, [])) + 1)  # 简单的ID生成逻辑
+            if filename not in annotations:
+                annotations[filename] = []
+            annotations[filename].append({'id': annotation_id, 'text': text})
+            self.note.new_data(annotations)
+            self.note.save()
+            return jsonify({'message': 'Annotation added successfully'})
+
+        @app.route('/update_annotation/<annotation_id>', methods=['POST'])
+        def update_annotation(annotation_id):
+            annotations = self.note.load()
+            data = request.get_json()
+            text = data['text']
+            for annot_list in annotations.values():
+                for annot in annot_list:
+                    if annot["id"] == annotation_id:
+                        annot["text"] = text
+                        self.note.new_data(annotations)
+                        self.note.save()
+                        return jsonify({'message': 'Annotation updated successfully'})
+            return jsonify({'message': 'Annotation not found'}), 404
+
+        @app.route('/delete_annotation/<annotation_id>', methods=['DELETE'])
+        def delete_annotation(annotation_id):
+            annotations = self.note.load()
+            for annot_list in annotations.values():
+                for annot in annot_list:
+                    if annot["id"] == annotation_id:
+                        annot_list.remove(annot)
+                        self.note.new_data(annotations)
+                        self.note.save()
+                        return jsonify({'message': 'Annotation deleted successfully'})
+            return jsonify({'message': 'Annotation not found'}), 404
+        
+        @app.route('/shutdown', methods=['POST'])
+        def shutdown_server():
+            os.kill(os.getpid(), signal.SIGTERM)
+            return "Shutting down", 200
+
+
+
+
+ 
+        
     def run(self):
         self.app.run()
 
 if __name__ == '__main__':
     url = 'http://127.0.0.1:5000/static/index.html'
     webbrowser.open(url)
-    image_app = ImageApp()
+    info = Info()
+    out = Out()
+    note = Note()
+    cat = CategoryManager(info.get_labels())
+    image_app = ImageApp(info=info, out=out, category=cat, note=note)
     image_app.run()

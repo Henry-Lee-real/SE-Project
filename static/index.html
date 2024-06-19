@@ -108,6 +108,7 @@
 <button id="deletefile">回收站</button>
 <input type="file" id="fileUpload" accept="image/*">
 <button onclick="uploadImage()">上传图片</button>
+<button id="shutdown" style="position: absolute; right: 20px; top: 20px;">关机</button>
 <div class="slideshow-container" id="container">
     <a class="prev" onclick="plusSlides(-1)">&#10094;</a>
     <a class="next" onclick="plusSlides(1)">&#10095;</a>
@@ -140,6 +141,38 @@
     document.getElementById('deletefile').addEventListener('click', function() {
         window.location.href = 'delete.html'; // 指定跳转的目标网页
     });
+
+    document.getElementById('shutdown').addEventListener('click', function() {
+        const controller = new AbortController(); // 创建一个控制器用于终止fetch请求
+        const timeoutId = setTimeout(() => {
+            controller.abort(); // 在超时后终止请求
+            window.location.href = 'http://127.0.0.1:5000/static/index.html'; // 重定向到指定页面，确保是当前页面才执行关闭
+            setTimeout(() => {
+                window.close(); // 尝试关闭当前窗口
+            }, 100); // 短延迟确保重定向执行
+        }, 5000); // 设置超时时间，例如5秒
+    
+        fetch('/shutdown', { method: 'POST', signal: controller.signal })
+            .then(response => {
+                clearTimeout(timeoutId); // 清除已设定的超时
+                if (response.ok) {
+                    window.location.href = 'http://127.0.0.1:5000/static/index.html'; // 重定向到指定页面，确保是当前页面才执行关闭
+                    setTimeout(() => {
+                        window.close(); // 尝试关闭当前窗口
+                    }, 100); // 短延迟确保重定向执行
+                }
+            })
+            .catch(error => {
+                // 不显示错误信息，直接尝试关闭
+                window.location.href = 'http://127.0.0.1:5000/static/index.html'; // 重定向到指定页面，确保是当前页面才执行关闭
+                setTimeout(() => {
+                    window.close(); // 尝试关闭当前窗口
+                }, 100); // 短延迟确保重定向执行
+            });
+    });
+    
+    
+    
 
     function deleteImage() {
         var slides = document.getElementsByClassName("mySlides");

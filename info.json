@@ -1,8 +1,1 @@
-{
-  "info": {
-    "total": 22,
-    "path": "static/img/",
-    "labels": ["no label","loved","recycled"]
-  },
-  "2024-06-07-23-33-46.png": {"label": "no label","note": "","loved":"True"}
-}
+{"info": {"total": 5, "path": "static/img/", "labels": ["no label", "loved", "recycled", "geo", "private"], "password": "123456"}, "labels": {"no label": ["2024-06-18-20-30-50.png", "2024-06-19-15-39-17.png"], "loved": [], "recycled": {}, "geo": ["2024-06-18-20-30-40.png"], "private": ["2024-06-19-00-01-52.png"]}}
