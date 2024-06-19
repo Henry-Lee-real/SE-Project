@@ -1,6 +1,7 @@
 import json
 from datetime import datetime
 import os
+import base64
 
 class Image:
     def __init__(self, name, note="", label="no label"):
@@ -33,6 +34,9 @@ class Note:
     def load(self):
         return self.data
     
+    def delete(self,image):
+        self.data.pop(image.name)
+    
     def new_data(self,data):
         self.data = data
     
@@ -52,7 +56,7 @@ class Out:
         
     def add_image(self, image):
         if self.status:
-            self.data.append(image.name)
+            self.data.append(image)
             return True
         
     def save_all(self, data):
@@ -153,7 +157,7 @@ class Info:
     # 根据时间筛选,格式需为"%Y-%m-%d-%H-%M-%S"
     def selectByTime(self, time1, time2):
         labels = self.data['info']['labels'].copy()
-        labels.remove('loved')
+        labels.remove('private')
         labels.remove('recycled')
         imgs = []
         if time2:
@@ -162,7 +166,9 @@ class Info:
             for label in labels:
                 images = self.data['labels'][label]
                 for img in images:
+                    print(2)
                     img_time = img.replace(".png", "")
+                    print(1)
                     img_obj = datetime.strptime(img_time, "%Y-%m-%d-%H-%M-%S")
                     if time1 <= img_obj <= time2:
                         imgs.append(img)
@@ -175,7 +181,7 @@ class Info:
                     img_obj = datetime.strptime(img_time, "%Y-%m-%d-%H-%M-%S")
                     if img_obj.strftime("%Y-%m-%d") == time1:
                         imgs.append(img)
-        imgs = sorted(imgs, key=lambda x: datetime.strptime(x, "%Y-%m-%d-%H-%M-%S"), reverse=True)
+        # imgs = sorted(imgs, key=lambda x: datetime.strptime(x, "%Y-%m-%d-%H-%M-%S"), reverse=True)
         return imgs
 
     # 回收照片
@@ -197,7 +203,7 @@ class Info:
             if name == img.name:
                 self.data['labels']['recycled'].pop(name)
                 self.data['labels']['no label'].append(name)
-            return True
+                return True
         return False
 
     # 彻底删除
@@ -205,9 +211,8 @@ class Info:
         for name in self.data['labels']['recycled']:
             if img.name == name:
                 self.data['labels']['recycled'].pop(name)
-                self.data['note'].pop(name)
                 self.data['info']['total'] -= 1
-            return True
+                return True
 
     # 检测回收站内的图片是否超过30天，在每次实例化的时候调用，返回应被删除的图片名
     def RecycleCheck(self):
@@ -228,7 +233,7 @@ class Info:
         t = now.strftime("%Y-%m-%d-%H-%M-%S")#XXXX-XX-XX
         All = self.data['labels']
         for label in All:
-            if label == "recycled":
+            if label == "recycled" or label == "private":
                 continue
             for image in All[label]:
                 if image[5:10] == t[5:10]:
@@ -239,10 +244,62 @@ class Info:
         out = []
         All = self.data['labels']
         for label in All:
-            if label == "recycled":
+            if label == "recycled" or label == "private":
                 continue
             out.append(label)
         return out
+    
+    # 返回隐私空间的图片
+    def getPrivate(self, password):
+        if password != self.data['info']['password']:
+            return False
+        imgs = self.data['labels']['private']
+        images = []
+        for img in imgs:
+            path = os.path.join(self.data['info']['path'], img)
+            path_ = os.path.join(self.data['info']['path'], 'P'+img)
+            with open(path, "r") as fp:
+                data = fp.read()
+                result = ''
+                for i in data:
+                    result += chr(ord(i) - 5)
+                result = base64.b64decode(result)
+            with open(path_, 'wb') as file:
+                file.write(result)
+            images.append(img)
+        return images
+
+    # 加入隐私空间
+    def private(self, img):
+        img.label = 'private'
+        self.changeLabel(img)
+        path = os.path.join(self.data['info']['path'], img.name)
+        with open(path, "rb") as fp:
+            data = fp.read()
+            source = base64.b64encode(data).decode()
+            result = ''
+            for i in source:
+                result += chr(ord(i) + 5)
+        os.remove(path)
+        with open(path, 'w') as file:
+            file.write(result)
+        return True
+
+    # 移出隐私空间
+    def privateRemove(self, img):
+        img.label = 'no label'
+        self.changeLabel(img)
+        path = os.path.join(self.data['info']['path'], img.name)
+        with open(path, "r") as fp:
+            data = fp.read()
+            result = ''
+            for i in data:
+                result += chr(ord(i) - 5)
+            result = base64.b64decode(result)
+        os.remove(path)
+        with open(path, 'wb') as file:
+            file.write(result)
+        return True
         
 class CategoryManager:
     def __init__(self, labels):

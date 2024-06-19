@@ -1,11 +1,13 @@
 from flask import Flask, request, jsonify, send_from_directory
-
+import numpy as np
+import cv2
 from werkzeug.utils import secure_filename
 import os
 import shutil
 import webbrowser
 import signal
 import json
+import re
 
 from Service import *
 from temp import *
@@ -59,8 +61,9 @@ class ImageApp:
                 files = os.listdir(self.img_dir)
                 self.out_json.open()
                 data = self.out_json.get_all()
+                re_out = self.info_json.getImages("recycled")
                 self.out_json.save()
-                images = [file for file in files if file.endswith(('.png', '.jpg', '.jpeg', '.gif')) and file in data]
+                images = [file for file in files if file.endswith(('.png', '.jpg', '.jpeg', '.gif')) and file in data and file not in re_out]
                 return jsonify(images)
             except Exception as e:
                 return str(e), 500
@@ -89,6 +92,69 @@ class ImageApp:
                 return jsonify(images)
             except Exception as e:
                 return str(e), 500
+            
+        @app.route('/process_data', methods=['POST'])
+        def process_data():
+            data = request.get_json()  # 解析JSON数据
+            category = data.get('category')  # 获取类别
+            filename = data.get('filename')  # 获取文件名
+            tmp_image = Image(name=filename,label=category)
+            self.cat.add_category(category)
+            self.info_json.changeLabel(tmp_image)
+            self.info_json.save()
+            return "ok"
+        
+        @app.route('/collect_image', methods=['POST'])
+        def collect_image():
+            # 获取JSON数据
+            data = request.get_json()
+            filename = data.get('filename')  
+            tmp_image = Image(name=filename,label="loved")
+            self.info_json.changeLabel(tmp_image)
+            self.info_json.save()
+            return "ok"
+        
+        def Guided_filter(input_img, eps = 0.01):
+            p = input_img.astype(np.float32) / 255
+            I = p
+            height, width = I.shape[:2]
+
+            r = 5
+            q = np.zeros((height, width), dtype=np.float32)
+
+            mean_I = cv2.blur(I, (r, r))
+            mean_p = cv2.blur(p, (r, r))
+            mean_Ip = cv2.blur(I * p, (r, r))
+            mean_II = cv2.blur(I * I, (r, r))
+
+            cov_Ip = mean_Ip - mean_I * mean_p
+            var_I = mean_II - mean_I * mean_I
+
+            a = cov_Ip / (var_I + eps)
+            b = mean_p - a * mean_I
+
+            mean_a = cv2.blur(a, (r, r))
+            mean_b = cv2.blur(b, (r, r))
+
+            q = mean_a * I + mean_b
+            imgGuidedFilter = (q * 255).astype(np.uint8)
+            
+
+            return imgGuidedFilter
+
+        
+        @app.route('/noisy_image', methods=['POST'])
+        def noisy_image():
+            # 获取JSON数据
+            data = request.get_json()
+            filename = data.get('filename')  
+            src_file = os.path.join(self.img_dir, filename)
+            dst_file = os.path.join(self.img_dir, filename)
+            img = cv2.imread(src_file)
+            img = Guided_filter(img)
+            cv2.imwrite(dst_file, img)
+            return "ok"
+
 
 
         @app.route('/delete/<filename>', methods=['GET'])
@@ -107,6 +173,8 @@ class ImageApp:
                 tmp_image = Image(name=filename)
                 self.info_json.delete(tmp_image)    
                 self.info_json.save()
+                self.note.delete(tmp_image)
+                self.note.save()
                 src_file = os.path.join(self.img_dir, filename)
                 os.remove(src_file)
                 return 'File totally deleted successfully'
@@ -171,26 +239,92 @@ class ImageApp:
                 return s[0:4].isdigit()  # 检查第一个字符是否是数字
             else:
                 return False  # 如果字符串为空，则返回False
+        
+        def validate_and_transform(date_string):
+            # 尝试将输入的字符串转换为日期对象
+            try:
+                # 格式化日期
+                date1 = datetime.strptime(date_string[:10], "%Y-%m-%d")
+            except ValueError:
+                return None, "Invalid date format. Expected format: YYYY-MM-DD"
+            try:
+                # 格式化日期
+                date2 = datetime.strptime(date_string[11:], "%Y-%m-%d")
+            except ValueError:
+                return None, "Invalid date format. Expected format: YYYY-MM-DD"
 
+            # 创建一天开始和结束的时间字符串
+            start_of_day = date1.strftime("%Y-%m-%d-00-00-00")
+            end_of_day = date2.strftime("%Y-%m-%d-23-59-59")
+            return [start_of_day, end_of_day], None  # 返回格式化的日期范围和无错误
+        
+        def validate_one(date_string):
+            # 尝试将输入的字符串转换为日期对象
+            try:
+                # 格式化日期
+                return datetime.strptime(date_string, "%Y-%m-%d")
+            except ValueError:
+                return None
+            
+        def validate_input(input_string):
+            # 正则表达式匹配 "private" 后跟中文或英文冒号，然后是六位数字
+            pattern = r'^private[：:]\d{6}$'
+            if re.match(pattern, input_string):
+                return True
+            else:
+                return False
+        
         @app.route('/check_submit/<ctx>', methods=['GET'])
         def check_submit(ctx):
             try:
-                ### ctx 判断！！鲁棒性
-                info = loadInfo()
-                if is_char_digit(ctx):
-                    out.open()
-                    all = info["labels"]
-                    for label in all:
-                        for name in all[label]:
-                            if ctx == name[0:10]:
-                                out.add_image(name)
-                    out.save()
-                else:
-                    data = info["labels"][ctx]
-                    with open('out.json', 'w', encoding='utf-8') as file:
-                        json.dump(data, file, ensure_ascii=False, indent=4)
+                data, error = validate_and_transform(ctx)
+                print(data)
+                if data:
+                    self.out_json.open()
+                    self.out_json.clean()
+                    out_ = self.info_json.selectByTime(data[0], data[1])
+                    self.out_json.save_all(out_)
+                    self.out_json.save()
+                    return 'open successfully'
                 
-                return 'open successfully'
+                data = validate_one(ctx)
+                if data:
+                    info = loadInfo()
+                    if is_char_digit(ctx):
+                        self.out_json.open()
+                        self.out_json.clean()
+                        all = info["labels"]
+                        for label in all:
+                            if label == "private":
+                                continue
+                            for name in all[label]:
+                                if ctx == name[0:10]:
+                                    self.out_json.add_image(name)
+                        self.out_json.save()
+                        return 'open successfully'
+                    
+                if validate_input(ctx):
+
+                    data = self.info_json.getPrivate(ctx[8:])
+                    if data == False:
+                        return 'error'                
+                    else:
+                        self.out_json.open()
+                        self.out_json.clean()
+                        for img in data:
+                            self.out_json.add_image('P'+img)
+                        self.out_json.save()
+                        return 'open successfully'
+                    
+                if ctx == "close":
+                    for filename in os.listdir(self.img_dir):
+                        file_path = os.path.join(self.img_dir, filename)
+                        if filename.startswith('P') and filename.lower().endswith(('.png', '.jpg', '.jpeg')):
+                            os.remove(file_path)
+                    return 'close successfully'
+                                    
+                
+                return 'not correct'
             except Exception as e:
                 return str(e), 500
 
@@ -198,6 +332,11 @@ class ImageApp:
         @app.route('/submit/<ctx>/<filename>', methods=['GET'])
         def submit(ctx,filename):
             try:
+                if ctx == 'private':
+                    tmp_image = Image(name=filename,label=ctx)
+                    self.info_json.private(tmp_image)
+                    self.info_json.save()
+                    return 'Change label successfully'
                 labels = self.cat.get_categories()
                 if ctx not in labels:
                     self.cat.add_category(ctx)
