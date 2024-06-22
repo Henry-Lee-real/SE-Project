@@ -121,6 +121,9 @@
 </body>
 <script>
 
+    getImages()
+    var slideIndex = 1;
+
     document.getElementById('main').addEventListener('click', function() {
         window.location.href = 'index.html'; // 指定跳转的目标网页
     });
@@ -138,7 +141,6 @@
             .then(response => response.text())
             .then(data => {
                 alert(data)
-
                 getImages()
             })
             .catch(error => console.error(error));
@@ -210,11 +212,14 @@
                     'Content-Type': 'application/json'
                 },
                 body: JSON.stringify(dataToSend)
+                
             })
             .then(response => response.json())
             .then(data => {
                 console.log('Server response:', data);
             })
+            .then(fetchCategories())
+            .then(getImages())
             .catch(error => console.error('Error:', error));
         } else {
             console.error('No slides found or slideIndex is out of bounds');
@@ -254,8 +259,7 @@
 
     }
 
-    getImages()
-    var slideIndex = 1;
+    
 
 
     function plusSlides(n) {
@@ -282,7 +286,9 @@
         fetch('/check_submit/' + (ctx || 'null')).then(response => response.text()).then(data => {
             alert(data)
             getImages()
-        }).catch(error => console.error(error));
+        })
+        .then(fetchCategories())
+        .catch(error => console.error(error));
         alert("确认");
     });
 

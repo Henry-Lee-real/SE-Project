@@ -11,7 +11,7 @@ import re
 
 from Service import *
 from temp import *
-from entity import Image, Out, Info, CategoryManager, Note
+from Class import Image, Status, Info, CategoryManager, Note
 
 
 class ImageApp:
@@ -45,25 +45,45 @@ class ImageApp:
                 shutil.move(src_file, dst_file)
                 tmp_image = Image(name=new_name)
                 self.info_json.upload(tmp_image)
-                self.info_json.save()
                 return 'File uploaded successfully'
 
 
         @app.route('/')
         def hello_world():  # put application's code here
             return 'Hello World!'
-
+        
+        def get_class_image(category):
+            files = os.listdir(self.img_dir)
+            data = self.info_json.getImages(category)
+            re_out = self.info_json.getImages("recycled")
+            images = [file for file in files if file.endswith(('.png', '.jpg', '.jpeg', '.gif')) and file in data and file not in re_out]
+            return images
+        
+        def get_private_image():
+            files = os.listdir(self.img_dir)
+            data = self.info_json.getImages("private")
+            Pdata = []
+            for file in data:
+                Pdata.append('P'+file)
+            images = [file for file in files if file.endswith(('.png', '.jpg', '.jpeg', '.gif')) and file in Pdata]
+            return images
 
         @app.route('/images_class', methods=['GET'])
         def get_images_class():
             try:
-                
-                files = os.listdir(self.img_dir)
-                self.out_json.open()
-                data = self.out_json.get_all()
-                re_out = self.info_json.getImages("recycled")
-                self.out_json.save()
-                images = [file for file in files if file.endswith(('.png', '.jpg', '.jpeg', '.gif')) and file in data and file not in re_out]
+                Dict = self.out_json.open()
+                first_key = next(iter(Dict))
+                first_value = Dict[first_key]
+                if first_key == "class":
+                    images = get_class_image(first_value)
+                if first_key == "empty":
+                    images = get_class_image("no label")
+                if first_key == "time2":
+                    images = self.info_json.selectByTime(first_value[0], first_value[1])
+                if first_key == "time1":
+                    images = self.info_json.selectByTime(first_value[0], None)
+                if first_key == "private":
+                    images = get_private_image()
                 return jsonify(images)
             except Exception as e:
                 return str(e), 500
@@ -98,10 +118,13 @@ class ImageApp:
             data = request.get_json()  # 解析JSON数据
             category = data.get('category')  # 获取类别
             filename = data.get('filename')  # 获取文件名
+            # Dict = self.out_json.open()
+            # first_key = next(iter(Dict))
+            # if first_key == "private":
+            #     if category == "kill"
             tmp_image = Image(name=filename,label=category)
             self.cat.add_category(category)
             self.info_json.changeLabel(tmp_image)
-            self.info_json.save()
             return "ok"
         
         @app.route('/collect_image', methods=['POST'])
@@ -111,7 +134,6 @@ class ImageApp:
             filename = data.get('filename')  
             tmp_image = Image(name=filename,label="loved")
             self.info_json.changeLabel(tmp_image)
-            self.info_json.save()
             return "ok"
         
         def Guided_filter(input_img, eps = 0.01):
@@ -160,9 +182,18 @@ class ImageApp:
         @app.route('/delete/<filename>', methods=['GET'])
         def delete_image(filename):
             try:
+                Dict = self.out_json.open()
+                first_key = next(iter(Dict))
+                if first_key == "private":
+                    kill_image(filename[1:])
+                    kill_image(filename)
+                    return 'File deleted successfully'
                 tmp_image = Image(name=filename)
-                self.info_json.recycle(tmp_image)    
-                self.info_json.save()
+                self.info_json.recycle(tmp_image)
+                out = self.info_json.check_empty_class()
+                if out != []:
+                    for label in out:
+                        self.cat.remove_category(label)
                 return 'File deleted successfully'
             except Exception as e:
                 return str(e), 500
@@ -172,9 +203,7 @@ class ImageApp:
             try:
                 tmp_image = Image(name=filename)
                 self.info_json.delete(tmp_image)    
-                self.info_json.save()
                 self.note.delete(tmp_image)
-                self.note.save()
                 src_file = os.path.join(self.img_dir, filename)
                 os.remove(src_file)
                 return 'File totally deleted successfully'
@@ -186,7 +215,6 @@ class ImageApp:
             try:
                 tmp_image = Image(name=filename)
                 self.info_json.unrecycle(tmp_image)
-                self.info_json.save()
                 return 'File recover successfully'
             except Exception as e:
                 return str(e), 500
@@ -199,11 +227,9 @@ class ImageApp:
         def submit_category():
             data = request.get_json()
             category = data.get('category')
-            data = self.info_json.getImages(category)
-            self.out_json.open()
-            self.out_json.clean()
-            self.out_json.save_all(data)
-            self.out_json.save()
+            Dict = {'class': category}
+            self.out_json.change_status(Dict)
+            close_private()
             return jsonify({'message': f'get:{category}'})
 
         def handle(ctx):
@@ -274,53 +300,46 @@ class ImageApp:
             else:
                 return False
         
+        def close_private():
+            for filename in os.listdir(self.img_dir):
+                    file_path = os.path.join(self.img_dir, filename)
+                    if filename.startswith('P') and filename.lower().endswith(('.png', '.jpg', '.jpeg')):
+                        os.remove(file_path)
+        
         @app.route('/check_submit/<ctx>', methods=['GET'])
         def check_submit(ctx):
             try:
                 data, error = validate_and_transform(ctx)
-                print(data)
                 if data:
-                    self.out_json.open()
-                    self.out_json.clean()
-                    out_ = self.info_json.selectByTime(data[0], data[1])
-                    self.out_json.save_all(out_)
-                    self.out_json.save()
+                    close_private()
+                    Dict = {'time2': data}
+                    self.out_json.change_status(Dict)
                     return 'open successfully'
                 
                 data = validate_one(ctx)
                 if data:
-                    info = loadInfo()
-                    if is_char_digit(ctx):
-                        self.out_json.open()
-                        self.out_json.clean()
-                        all = info["labels"]
-                        for label in all:
-                            if label == "private":
-                                continue
-                            for name in all[label]:
-                                if ctx == name[0:10]:
-                                    self.out_json.add_image(name)
-                        self.out_json.save()
-                        return 'open successfully'
+                    close_private()
+                    Dict = {'time1': [data]}
+                    self.out_json.change_status(Dict)
+                    return 'open successfully'
                     
                 if validate_input(ctx):
-
+                    Dict = self.out_json.open()
+                    first_key = next(iter(Dict))
+                    if first_key == 'private':
+                        self.info_json.change_password(ctx[8:])
+                        return 'change password successfully'
                     data = self.info_json.getPrivate(ctx[8:])
                     if data == False:
                         return 'error'                
                     else:
-                        self.out_json.open()
-                        self.out_json.clean()
-                        for img in data:
-                            self.out_json.add_image('P'+img)
-                        self.out_json.save()
+                        Dict = {'private': 1}
+                        self.out_json.change_status(Dict)
                         return 'open successfully'
                     
-                if ctx == "close":
-                    for filename in os.listdir(self.img_dir):
-                        file_path = os.path.join(self.img_dir, filename)
-                        if filename.startswith('P') and filename.lower().endswith(('.png', '.jpg', '.jpeg')):
-                            os.remove(file_path)
+                if ctx == "close" or ctx == "CLOSE":
+                    close_private()
+                    self.out_json.clean()
                     return 'close successfully'
                                     
                 
@@ -335,14 +354,14 @@ class ImageApp:
                 if ctx == 'private':
                     tmp_image = Image(name=filename,label=ctx)
                     self.info_json.private(tmp_image)
-                    self.info_json.save()
                     return 'Change label successfully'
                 labels = self.cat.get_categories()
+                if ctx == "":
+                    return 'Error input'
                 if ctx not in labels:
                     self.cat.add_category(ctx)
                 tmp_image = Image(name=filename,label=ctx)
                 self.info_json.changeLabel(tmp_image)
-                self.info_json.save()
                 return 'Change label successfully'
             except Exception as e:
                 return str(e), 500
@@ -369,7 +388,6 @@ class ImageApp:
                 annotations[filename] = []
             annotations[filename].append({'id': annotation_id, 'text': text})
             self.note.new_data(annotations)
-            self.note.save()
             return jsonify({'message': 'Annotation added successfully'})
 
         @app.route('/update_annotation/<annotation_id>', methods=['POST'])
@@ -382,7 +400,6 @@ class ImageApp:
                     if annot["id"] == annotation_id:
                         annot["text"] = text
                         self.note.new_data(annotations)
-                        self.note.save()
                         return jsonify({'message': 'Annotation updated successfully'})
             return jsonify({'message': 'Annotation not found'}), 404
 
@@ -394,7 +411,6 @@ class ImageApp:
                     if annot["id"] == annotation_id:
                         annot_list.remove(annot)
                         self.note.new_data(annotations)
-                        self.note.save()
                         return jsonify({'message': 'Annotation deleted successfully'})
             return jsonify({'message': 'Annotation not found'}), 404
         
@@ -415,7 +431,7 @@ if __name__ == '__main__':
     url = 'http://127.0.0.1:5000/static/index.html'
     webbrowser.open(url)
     info = Info()
-    out = Out()
+    out = Status()
     note = Note()
     cat = CategoryManager(info.get_labels())
     image_app = ImageApp(info=info, out=out, category=cat, note=note)

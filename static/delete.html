@@ -188,14 +188,11 @@
                 })
                 data.forEach(image => {
                     var img = document.createElement('img');
-                    img.onload = function() {
-                        if (this.height > 600) { // 假设你希望最大高度为600px
+                    img.onload = function() {            
                             this.style.height = '600px'; // 设置图片高度不超过600px
-                            this.style.width = 'auto';  // 宽度自适应以保持图片比例
-                        }
+                            this.style.width = 'auto';  // 宽度自适应以保持图片比例            
                     };
                     img.src = 'img/' + image;
-                    img.style.width = '100%'; // 图片宽度自适应容器宽度
                     img.style.display = 'block'; // 将图片设置为块级元素
                     img.style.margin = 'auto'; // 水平居中
                     var slide = document.createElement('div');
@@ -203,12 +200,10 @@
                     slide.style.display = 'flex'; // 使用Flexbox布局
                     slide.style.justifyContent = 'center'; // 水平居中内容
                     slide.style.alignItems = 'center'; // 垂直居中内容
-                    slide.style.height = '100%'; // 使div高度填满父元素
                     slide.appendChild(img);
                     document.getElementById('container').appendChild(slide);
                 });
                 showSlides(slideIndex);
-    
                 console.log(data)
             })
             .catch(error => console.error(error));

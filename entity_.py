@@ -4,7 +4,7 @@ import os
 import base64
 
 class Image:
-    def __init__(self, name, note="", label="no label"):
+    def __init__(self, name, label="no label"):
         self.name = name
         self.label = label
 
