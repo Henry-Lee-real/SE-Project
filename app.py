@@ -11,19 +11,21 @@ import re
 
 from Service import *
 from temp import *
-from Class import Image, Status, Info, CategoryManager, Note
+from Class import Image, Status, Info, CategoryManager, Note, Time, Private
 
 
 class ImageApp:
-    def __init__(self, info, out, category, note):
+    def __init__(self):
         self.app = Flask(__name__)
         self.img_dir = os.path.join(os.getcwd(), 'static/img')
         self.app.config['UPLOAD_FOLDER'] = 'static/img'
         self.setup_routes()
-        self.info_json = info
-        self.out_json = out
-        self.cat = category
-        self.note = note
+        self.info_json = Info()
+        self.out_json = Status()
+        self.cat = CategoryManager(self.info_json.get_labels())
+        self.note = Note()
+        self.time = Time()
+        self.priavte = Private()
 
     def setup_routes(self):
         app = self.app
@@ -79,9 +81,9 @@ class ImageApp:
                 if first_key == "empty":
                     images = get_class_image("no label")
                 if first_key == "time2":
-                    images = self.info_json.selectByTime(first_value[0], first_value[1])
+                    images = self.time.selectByTime(first_value[0], first_value[1], self.info_json)
                 if first_key == "time1":
-                    images = self.info_json.selectByTime(first_value[0], None)
+                    images = self.time.selectByTime(first_value[0], None, self.info_json)
                 if first_key == "private":
                     images = get_private_image()
                 return jsonify(images)
@@ -93,7 +95,7 @@ class ImageApp:
             try:
                 
                 files = os.listdir(self.img_dir)
-                data = self.info_json.same_day()
+                data = self.time.same_day(self.info_json)
                 images = [file for file in files if file.endswith(('.png', '.jpg', '.jpeg', '.gif')) and file in data]
                 return jsonify(images)
             except Exception as e:
@@ -118,10 +120,6 @@ class ImageApp:
             data = request.get_json()  # 解析JSON数据
             category = data.get('category')  # 获取类别
             filename = data.get('filename')  # 获取文件名
-            # Dict = self.out_json.open()
-            # first_key = next(iter(Dict))
-            # if first_key == "private":
-            #     if category == "kill"
             tmp_image = Image(name=filename,label=category)
             self.cat.add_category(category)
             self.info_json.changeLabel(tmp_image)
@@ -160,8 +158,6 @@ class ImageApp:
 
             q = mean_a * I + mean_b
             imgGuidedFilter = (q * 255).astype(np.uint8)
-            
-
             return imgGuidedFilter
 
         
@@ -232,40 +228,6 @@ class ImageApp:
             close_private()
             return jsonify({'message': f'get:{category}'})
 
-        def handle(ctx):
-            if ctx == "all":
-                writeOut
-                # print(1)
-                # with open('out.json', 'r', encoding='utf-8') as file:
-                #     data = json.load(file)
-
-                # # 修改数据
-                # data.append("pexels-pok-rie-33563-2049422.jpg")
-
-                # # 保存更改到文件
-                # with open('out.json', 'w', encoding='utf-8') as file:
-                #     json.dump(data, file, ensure_ascii=False, indent=4)
-                    
-            elif ctx == "收藏":
-                with open('out1.json', 'r', encoding='utf-8') as file:
-                    data = json.load(file)
-
-                # 修改数据
-                data.append("pexels-pok-rie-33563-2049422.jpg")
-
-                # 保存更改到文件
-                with open('out1.json', 'w', encoding='utf-8') as file:
-                    json.dump(data, file, ensure_ascii=False, indent=4)
-
-            return ctx
-
-        def is_char_digit(s):
-            # 首先检查字符串是否为空，以避免索引错误
-            if s:  # 确保字符串不为空
-                return s[0:4].isdigit()  # 检查第一个字符是否是数字
-            else:
-                return False  # 如果字符串为空，则返回False
-        
         def validate_and_transform(date_string):
             # 尝试将输入的字符串转换为日期对象
             try:
@@ -288,7 +250,8 @@ class ImageApp:
             # 尝试将输入的字符串转换为日期对象
             try:
                 # 格式化日期
-                return datetime.strptime(date_string, "%Y-%m-%d")
+                date = datetime.strptime(date_string, "%Y-%m-%d")
+                return [date.strftime("%Y-%m-%d")]
             except ValueError:
                 return None
             
@@ -319,7 +282,7 @@ class ImageApp:
                 data = validate_one(ctx)
                 if data:
                     close_private()
-                    Dict = {'time1': [data]}
+                    Dict = {'time1': data}
                     self.out_json.change_status(Dict)
                     return 'open successfully'
                     
@@ -329,7 +292,7 @@ class ImageApp:
                     if first_key == 'private':
                         self.info_json.change_password(ctx[8:])
                         return 'change password successfully'
-                    data = self.info_json.getPrivate(ctx[8:])
+                    data = self.priavte.getPrivate(ctx[8:], self.info_json)
                     if data == False:
                         return 'error'                
                     else:
@@ -353,7 +316,8 @@ class ImageApp:
             try:
                 if ctx == 'private':
                     tmp_image = Image(name=filename,label=ctx)
-                    self.info_json.private(tmp_image)
+                    out = self.priavte.private(tmp_image, self.info_json)
+                    self.info_json.update(out)
                     return 'Change label successfully'
                 labels = self.cat.get_categories()
                 if ctx == "":
@@ -418,21 +382,15 @@ class ImageApp:
         def shutdown_server():
             os.kill(os.getpid(), signal.SIGTERM)
             return "Shutting down", 200
-
-
-
-
- 
-        
+    
     def run(self):
         self.app.run()
+        
+        
+        
 
 if __name__ == '__main__':
     url = 'http://127.0.0.1:5000/static/index.html'
     webbrowser.open(url)
-    info = Info()
-    out = Status()
-    note = Note()
-    cat = CategoryManager(info.get_labels())
-    image_app = ImageApp(info=info, out=out, category=cat, note=note)
+    image_app = ImageApp()
     image_app.run()

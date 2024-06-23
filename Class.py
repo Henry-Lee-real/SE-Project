@@ -68,13 +68,127 @@ class Status:
         return self.data_handler.save_data(self.data)
 
 
-def is_over_30_days(time1, time2):
-    time_format = '%Y-%m-%d-%H-%M-%S'
-    date1 = datetime.strptime(time1, time_format)
-    date2 = datetime.strptime(time2, time_format)
-    date_diff = abs((date2 - date1).days)
-    return date_diff > 30
 
+
+class Time:
+    def is_over_30_days(self, time1, time2):
+        time_format = '%Y-%m-%d-%H-%M-%S'
+        date1 = datetime.strptime(time1, time_format)
+        date2 = datetime.strptime(time2, time_format)
+        date_diff = abs((date2 - date1).days)
+        return date_diff > 30
+    
+    def selectByTime(self, time1, time2, info):
+        data = info.load()
+        labels = data['info']['labels'].copy()
+        labels.remove('private')
+        labels.remove('recycled')
+        imgs = []
+        if time2:
+            time1 = datetime.strptime(time1, "%Y-%m-%d-%H-%M-%S")
+            time2 = datetime.strptime(time2, "%Y-%m-%d-%H-%M-%S")
+            for label in labels:
+                images = data['labels'][label]
+                for img in images:
+                    img_time = img.replace(".png", "")
+                    img_obj = datetime.strptime(img_time, "%Y-%m-%d-%H-%M-%S")
+                    if time1 <= img_obj <= time2:
+                        imgs.append(img)
+
+        else:
+            for label in labels:
+                images = data['labels'][label]
+                for img in images:
+                    img_time = img.replace(".png", "")
+                    img_obj = datetime.strptime(img_time, "%Y-%m-%d-%H-%M-%S")
+                    if img_obj.strftime("%Y-%m-%d") == time1:
+                        imgs.append(img)
+        return imgs
+    
+    def same_day(self, info):
+        data = info.load()
+        out = []
+        now = datetime.now()
+        t = now.strftime("%Y-%m-%d-%H-%M-%S")#XXXX-XX-XX
+        All = data['labels']
+        for label in All:
+            if label == "recycled" or label == "private":
+                continue
+            for image in All[label]:
+                if image[5:10] == t[5:10]:
+                    out.append(image)
+        return out
+    
+    # 检测回收站内的图片是否超过30天，在每次实例化的时候调用，返回应被删除的图片名
+    def RecycleCheck(self, info):
+        data = info.load()
+        now = datetime.now()
+        t = now.strftime("%Y-%m-%d-%H-%M-%S")
+        delete = []
+        for name in data['labels']['recycled']:
+            past_time = data['labels']['recycled'][name]
+            if self.is_over_30_days(past_time, t):
+                delete.append(name)
+                data['labels']['recycled'].remove((name, past_time))
+        return data#info.update()
+
+
+
+class Private:
+    # 返回隐私空间的图片
+    def getPrivate(self, password, info):
+        data = info.load()
+        if password != data['info']['password']:
+            return False
+        imgs = data['labels']['private']
+        images = []
+        for img in imgs:
+            path = os.path.join(data['info']['path'], img)
+            path_ = os.path.join(data['info']['path'], 'P'+img)
+            with open(path, "r") as fp:
+                data = fp.read()
+                result = ''
+                for i in data:
+                    result += chr(ord(i) - 5)
+                result = base64.b64decode(result)
+            with open(path_, 'wb') as file:
+                file.write(result)
+            images.append(img)
+        return images
+
+    # 加入隐私空间
+    def private(self, img, info):
+        data = info.load()
+        img.label = 'private'
+        info.changeLabel(img)
+        path = os.path.join(data['info']['path'], img.name)
+        with open(path, "rb") as fp:
+            data_ = fp.read()
+            source = base64.b64encode(data_).decode()
+            result = ''
+            for i in source:
+                result += chr(ord(i) + 5)
+        os.remove(path)
+        with open(path, 'w') as file:
+            file.write(result)
+        return data #info.update()
+
+    # 移出隐私空间
+    def privateRemove(self, img, info):
+        data = info.load()
+        img.label = 'no label'
+        info.changeLabel(img)
+        path = os.path.join(data['info']['path'], img.name)
+        with open(path, "r") as fp:
+            data_ = fp.read()
+            result = ''
+            for i in data_:
+                result += chr(ord(i) - 5)
+            result = base64.b64decode(result)
+        os.remove(path)
+        with open(path, 'wb') as file:
+            file.write(result)
+        return data #info.update()
 
 # 对info的控制类
 class Info:
@@ -84,6 +198,13 @@ class Info:
 
     def save(self):
         return self.file_handler.save_data(self.data)
+    
+    def load(self):
+        return self.data
+    
+    def update(self, data):
+        self.data = data
+        return self.save()
 
     #上传一张图片
     def upload(self, image):
@@ -163,64 +284,6 @@ class Info:
                 self.save()
                 return True
 
-
-
-    def selectByTime(self, time1, time2):
-        labels = self.data['info']['labels'].copy()
-        labels.remove('private')
-        labels.remove('recycled')
-        imgs = []
-        if time2:
-            time1 = datetime.strptime(time1, "%Y-%m-%d-%H-%M-%S")
-            time2 = datetime.strptime(time2, "%Y-%m-%d-%H-%M-%S")
-            for label in labels:
-                images = self.data['labels'][label]
-                for img in images:
-                    img_time = img.replace(".png", "")
-                    img_obj = datetime.strptime(img_time, "%Y-%m-%d-%H-%M-%S")
-                    if time1 <= img_obj <= time2:
-                        imgs.append(img)
-
-        else:
-            for label in labels:
-                images = self.data['labels'][label]
-                for img in images:
-                    img_time = img.replace(".png", "")
-                    img_obj = datetime.strptime(img_time, "%Y-%m-%d-%H-%M-%S")
-                    if img_obj.strftime("%Y-%m-%d") == time1:
-                        imgs.append(img)
-        # imgs = sorted(imgs, key=lambda x: datetime.strptime(x, "%Y-%m-%d-%H-%M-%S"), reverse=True)
-        return imgs
-
-
-
-
-    # 检测回收站内的图片是否超过30天，在每次实例化的时候调用，返回应被删除的图片名
-    def RecycleCheck(self):
-        now = datetime.now()
-        t = now.strftime("%Y-%m-%d-%H-%M-%S")
-        delete = []
-        for name in self.data['labels']['recycled']:
-            past_time = self.data['labels']['recycled'][name]
-            if is_over_30_days(past_time, t):
-                delete.append(name)
-                self.data['labels']['recycled'].remove((name, past_time))
-        return delete
-    
-    
-    def same_day(self):
-        out = []
-        now = datetime.now()
-        t = now.strftime("%Y-%m-%d-%H-%M-%S")#XXXX-XX-XX
-        All = self.data['labels']
-        for label in All:
-            if label == "recycled" or label == "private":
-                continue
-            for image in All[label]:
-                if image[5:10] == t[5:10]:
-                    out.append(image)
-        return out
-    
     def get_labels(self):
         out = []
         All = self.data['labels']
@@ -229,58 +292,6 @@ class Info:
                 continue
             out.append(label)
         return out
-    
-    # 返回隐私空间的图片
-    def getPrivate(self, password):
-        if password != self.data['info']['password']:
-            return False
-        imgs = self.data['labels']['private']
-        images = []
-        for img in imgs:
-            path = os.path.join(self.data['info']['path'], img)
-            path_ = os.path.join(self.data['info']['path'], 'P'+img)
-            with open(path, "r") as fp:
-                data = fp.read()
-                result = ''
-                for i in data:
-                    result += chr(ord(i) - 5)
-                result = base64.b64decode(result)
-            with open(path_, 'wb') as file:
-                file.write(result)
-            images.append(img)
-        return images
-
-    # 加入隐私空间
-    def private(self, img):
-        img.label = 'private'
-        self.changeLabel(img)
-        path = os.path.join(self.data['info']['path'], img.name)
-        with open(path, "rb") as fp:
-            data = fp.read()
-            source = base64.b64encode(data).decode()
-            result = ''
-            for i in source:
-                result += chr(ord(i) + 5)
-        os.remove(path)
-        with open(path, 'w') as file:
-            file.write(result)
-        return True
-
-    # 移出隐私空间
-    def privateRemove(self, img):
-        img.label = 'no label'
-        self.changeLabel(img)
-        path = os.path.join(self.data['info']['path'], img.name)
-        with open(path, "r") as fp:
-            data = fp.read()
-            result = ''
-            for i in data:
-                result += chr(ord(i) - 5)
-            result = base64.b64decode(result)
-        os.remove(path)
-        with open(path, 'wb') as file:
-            file.write(result)
-        return True
     
     def check_empty_class(self):
         out = []
