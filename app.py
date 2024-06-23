@@ -6,11 +6,9 @@ import os
 import shutil
 import webbrowser
 import signal
-import json
+from datetime import datetime
 import re
 
-from Service import *
-from temp import *
 from Class import Image, Status, Info, CategoryManager, Note, Time, Private
 
 
@@ -29,6 +27,10 @@ class ImageApp:
 
     def setup_routes(self):
         app = self.app
+        
+        def selectName():
+            name = datetime.now().strftime("%Y-%m-%d-%H-%M-%S")
+            return name
         
         @app.route('/upload', methods=['POST'])
         def upload_file():
