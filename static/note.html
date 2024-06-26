@@ -84,7 +84,7 @@
                 fetch(`/update_annotation/${id}`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ text: newText })
+                    body: JSON.stringify({filename: currentFilename, text: newText })
                 })
                 .then(response => response.json())
                 .then(data => {
@@ -98,7 +98,9 @@
         function deleteAnnotation(id) {
             if (confirm("确定删除这条批注吗？")) {
                 fetch(`/delete_annotation/${id}`, {
-                    method: 'DELETE'
+                    method: 'DELETE',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({filename: currentFilename})
                 })
                 .then(response => response.json())
                 .then(data => {

@@ -53,8 +53,9 @@ class ImageApp:
 
 
         @app.route('/')
-        def hello_world():  # put application's code here
-            return 'Hello World!'
+        def hello_world():  # Serve the index.html as the root page
+            return send_from_directory('static', 'index.html')
+        
         
         def get_class_image(category):
             files = os.listdir(self.img_dir)
@@ -119,10 +120,22 @@ class ImageApp:
             
         @app.route('/process_data', methods=['POST'])
         def process_data():
+            Dict = self.out_json.open()
+            first_key = next(iter(Dict))
+            if first_key == "private":
+                return 'ban'
             data = request.get_json()  # 解析JSON数据
             category = data.get('category')  # 获取类别
             filename = data.get('filename')  # 获取文件名
             tmp_image = Image(name=filename,label=category)
+            if category == 'recycled':
+                return "error"
+            if category == 'private':
+                tmp_image = Image(name=filename,label='private')
+                out = self.priavte.private(tmp_image, self.info_json)
+                self.info_json.update(out)
+                return 'Change label successfully'
+            
             self.cat.add_category(category)
             self.info_json.changeLabel(tmp_image)
             return "ok"
@@ -360,24 +373,27 @@ class ImageApp:
         def update_annotation(annotation_id):
             annotations = self.note.load()
             data = request.get_json()
+            filename = data['filename']
             text = data['text']
-            for annot_list in annotations.values():
-                for annot in annot_list:
-                    if annot["id"] == annotation_id:
-                        annot["text"] = text
-                        self.note.new_data(annotations)
-                        return jsonify({'message': 'Annotation updated successfully'})
+            annot_list = annotations[filename]
+            for annot in annot_list:
+                if annot["id"] == annotation_id:
+                    annot["text"] = text
+                    self.note.new_data(annotations)
+                    return jsonify({'message': 'Annotation updated successfully'})
             return jsonify({'message': 'Annotation not found'}), 404
 
         @app.route('/delete_annotation/<annotation_id>', methods=['DELETE'])
         def delete_annotation(annotation_id):
             annotations = self.note.load()
-            for annot_list in annotations.values():
-                for annot in annot_list:
-                    if annot["id"] == annotation_id:
-                        annot_list.remove(annot)
-                        self.note.new_data(annotations)
-                        return jsonify({'message': 'Annotation deleted successfully'})
+            data = request.get_json()
+            filename = data['filename']
+            annot_list = annotations[filename]
+            for annot in annot_list:
+                if annot["id"] == annotation_id:
+                    annot_list.remove(annot)
+                    self.note.new_data(annotations)
+                    return jsonify({'message': 'Annotation deleted successfully'})
             return jsonify({'message': 'Annotation not found'}), 404
         
         @app.route('/shutdown', methods=['POST'])
@@ -386,13 +402,13 @@ class ImageApp:
             return "Shutting down", 200
     
     def run(self):
-        self.app.run()
+        self.app.run(port=8000)
         
         
         
 
 if __name__ == '__main__':
-    url = 'http://127.0.0.1:5000/static/index.html'
+    url = 'http://127.0.0.1:8000/static/index.html'
     webbrowser.open(url)
     image_app = ImageApp()
     image_app.run()

@@ -239,7 +239,7 @@ class Info:
         if img.name not in self.data['labels'][img.label]:
             self.data['labels'][img.label].append(img.name)
         for lab in labels:
-            if lab != 'loved' and lab != "recycled" and lab != img.label:
+            if lab != "recycled" and lab != img.label:
                 if img.name in self.data['labels'][lab]:
                     self.data['labels'][lab].remove(img.name)
                 self.save()
