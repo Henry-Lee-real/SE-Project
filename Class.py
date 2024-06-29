@@ -83,6 +83,7 @@ class Time:
         labels = data['info']['labels'].copy()
         labels.remove('private')
         labels.remove('recycled')
+        print(labels)
         imgs = []
         if time2:
             time1 = datetime.strptime(time1, "%Y-%m-%d-%H-%M-%S")
@@ -97,6 +98,7 @@ class Time:
 
         else:
             for label in labels:
+                print(label)
                 images = data['labels'][label]
                 for img in images:
                     img_time = img.replace(".png", "")
@@ -146,9 +148,9 @@ class Private:
             path = os.path.join(data['info']['path'], img)
             path_ = os.path.join(data['info']['path'], 'P'+img)
             with open(path, "r") as fp:
-                data = fp.read()
+                data_ = fp.read()
                 result = ''
-                for i in data:
+                for i in data_:
                     result += chr(ord(i) - 5)
                 result = base64.b64decode(result)
             with open(path_, 'wb') as file:
@@ -242,8 +244,8 @@ class Info:
             if lab != "recycled" and lab != img.label:
                 if img.name in self.data['labels'][lab]:
                     self.data['labels'][lab].remove(img.name)
-                self.save()
-                return True
+        self.save()
+        return True
     
     # 回收照片
     def recycle(self, img):

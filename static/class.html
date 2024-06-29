@@ -123,11 +123,11 @@
                 
             })
             .then(response => response.json())
+            .then(getImages())
+            .then(fetchCategories())
             .then(data => {
                 console.log('Server response:', data);
             })
-            .then(fetchCategories())
-            .then(getImages())
             .catch(error => console.error('Error:', error));
         } else {
             console.error('No slides found or slideIndex is out of bounds');

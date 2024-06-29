@@ -131,13 +131,16 @@ class ImageApp:
             if category == 'recycled':
                 return "error"
             if category == 'private':
-                tmp_image = Image(name=filename,label='private')
                 out = self.priavte.private(tmp_image, self.info_json)
                 self.info_json.update(out)
                 return 'Change label successfully'
             
             self.cat.add_category(category)
             self.info_json.changeLabel(tmp_image)
+            out = self.info_json.check_empty_class()
+            if out != []:
+                for label in out:
+                    self.cat.remove_category(label)
             return "ok"
         
         @app.route('/collect_image', methods=['POST'])
@@ -287,6 +290,10 @@ class ImageApp:
         @app.route('/check_submit/<ctx>', methods=['GET'])
         def check_submit(ctx):
             try:
+                if ctx == "":
+                    return 'Error input'
+                if ctx == "null":
+                    return 'Error input'
                 data, error = validate_and_transform(ctx)
                 if data:
                     close_private()
@@ -336,6 +343,8 @@ class ImageApp:
                     return 'Change label successfully'
                 labels = self.cat.get_categories()
                 if ctx == "":
+                    return 'Error input'
+                if ctx == "null":
                     return 'Error input'
                 if ctx not in labels:
                     self.cat.add_category(ctx)
